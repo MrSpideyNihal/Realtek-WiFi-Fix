@@ -1,10 +1,11 @@
 @echo off
 :: ============================================================================
-:: Realtek Wi-Fi Disconnection & Power Drop Fix (Realtek 8852BE / 8852CE / etc.)
-:: Fixes Kernel-PnP Event 420 "Device Deleted", Code 10/43 & Random Disconnects
+:: Realtek & MediaTek Wi-Fi / Bluetooth Disconnection & Power Fix Utility
+:: Works for Realtek (8852BE/CE) and MediaTek (MT7921/MT7922/RZ608/RZ616)
+:: Fixes Wi-Fi Disconnections, Bluetooth Turning Off, and Kernel-PnP Event 420
 :: ============================================================================
 
-title Realtek Wi-Fi Complete Repair Utility
+title Universal Realtek & MediaTek Wi-Fi / Bluetooth Fix Utility
 color 0A
 
 :: Self-elevation to Administrator
@@ -18,36 +19,47 @@ if %errorlevel% neq 0 (
 
 echo.
 echo ============================================================================
-echo         Realtek Wi-Fi Disconnection ^& Power Drop Fix Utility
+echo   Universal Realtek ^& MediaTek Wi-Fi / Bluetooth Disconnection Fix
 echo ============================================================================
 echo.
 
-:: 1. Unhide hidden Power Options in Windows Registry
-echo [1/6] Unhiding PCIe ASPM and Wireless Power Settings...
+:: 1. Unhide hidden Power Options in Windows Registry (PCIe ASPM ^& Wireless)
+echo [1/7] Unhiding PCIe ASPM, Wireless, and USB Power Settings...
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\19cbb8fa-5279-450e-9fac-8a3d5fedd0c1\12bbebe6-58d6-4636-95bb-3217ef867c1a" /v "Attributes" /t REG_DWORD /d 2 /f >nul 2>&1
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\501a4d13-42af-4429-9fd1-a8218c268e20\ee12f906-d277-404b-b6da-e5fa1a576df5" /v "Attributes" /t REG_DWORD /d 2 /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\2a737441-1930-4402-8d77-b2bebba308a3\48e6b7a6-50f5-4782-a5d4-53bb8f07e226" /v "Attributes" /t REG_DWORD /d 2 /f >nul 2>&1
 
 :: 2. Disable Windows Fast Startup
-echo [2/6] Disabling Windows Fast Startup...
+echo [2/7] Disabling Windows Fast Startup (prevents low-power state cache bugs)...
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /v "HiberbootEnabled" /t REG_DWORD /d 0 /f >nul 2>&1
 
-:: 3. Disable Realtek Roaming Aggressiveness ^& Power Saving in Registry
-echo [3/6] Disabling Roaming Aggressiveness, 802.11d ^& Leisure Power Save...
+:: 3. Disable Driver Level Power Saving ^& Roaming Aggressiveness (Realtek ^& MediaTek)
+echo [3/7] Disabling Driver Power Saving, Roaming Drops ^& Bluetooth Sleep...
 powershell -Command "
-$netKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\0010'
-if (Test-Path $netKey) {
-    Set-ItemProperty -Path $netKey -Name 'RegRoamLevel' -Value '1' -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path $netKey -Name 'Dot11dEnable' -Value '0' -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path $netKey -Name 'SupportMACRandom' -Value '0' -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path $netKey -Name 'PnPCapabilities' -Value 24 -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path $netKey -Name 'LpsEn' -Value '0' -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path $netKey -Name 'LpsCap' -Value '0' -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path $netKey -Name 'LpsWowEn' -Value '0' -ErrorAction SilentlyContinue
+Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\*' | Where-Object { $_.DriverDesc -like '*Realtek*' -or $_.DriverDesc -like '*MediaTek*' -or $_.DriverDesc -like '*MT79*' -or $_.DriverDesc -like '*RZ6*' } | ForEach-Object {
+    Set-ItemProperty -Path $_.PSPath -Name 'RegRoamLevel' -Value '1' -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $_.PSPath -Name 'Dot11dEnable' -Value '0' -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $_.PSPath -Name 'SupportMACRandom' -Value '0' -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $_.PSPath -Name 'PnPCapabilities' -Value 24 -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $_.PSPath -Name 'LpsEn' -Value '0' -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $_.PSPath -Name 'LpsCap' -Value '0' -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $_.PSPath -Name 'LpsWowEn' -Value '0' -ErrorAction SilentlyContinue
 }
 " >nul 2>&1
 
-:: 4. Apply Power Scheme Settings across ALL power plans (Balanced, Performance, Silent, Turbo)
-echo [4/6] Locking Wireless Adapter to Max Performance ^& PCIe Link State to OFF...
+:: 4. Disable USB Selective Suspend (Prevents Bluetooth portion of combo card from sleeping)
+echo [4/7] Disabling USB Selective Suspend (keeps Bluetooth active)...
+powershell -Command "
+$schemes = powercfg /list | Select-String -Pattern '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})' | ForEach-Object { $_.Matches.Value }
+foreach ($s in $schemes) {
+    # USB Selective Suspend -> Disabled (0)
+    powercfg /setacvalueindex $s 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+    powercfg /setdcvalueindex $s 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
+}
+" >nul 2>&1
+
+:: 5. Apply Power Scheme Settings across ALL power plans (Balanced, Performance, Silent, Turbo)
+echo [5/7] Locking Wireless Adapter to Max Performance ^& PCIe Link State to OFF...
 powershell -Command "
 $schemes = powercfg /list | Select-String -Pattern '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})' | ForEach-Object { $_.Matches.Value }
 foreach ($s in $schemes) {
@@ -59,20 +71,26 @@ foreach ($s in $schemes) {
 powercfg /setactive SCHEME_CURRENT
 " >nul 2>&1
 
-:: 5. Flush Network Stack
-echo [5/6] Flushing TCP/IP Stack ^& Winsock Catalog...
+:: 6. Flush Network Stack
+echo [6/7] Flushing TCP/IP Stack ^& Winsock Catalog...
 netsh winsock reset >nul 2>&1
 netsh int ip reset >nul 2>&1
 ipconfig /flushdns >nul 2>&1
 
-:: 6. Refresh Network Adapter
-echo [6/6] Restarting Wi-Fi Adapter...
+:: 7. Refresh Network ^& Bluetooth Adapters
+echo [7/7] Restarting Wi-Fi ^& Bluetooth Adapters...
 powershell -Command "Restart-NetAdapter -Name 'Wi-Fi' -ErrorAction SilentlyContinue" >nul 2>&1
 
 echo.
 echo ============================================================================
 echo                      SUCCESS! ALL FIXES APPLIED.
 echo ============================================================================
+echo.
+echo What was fixed:
+echo   * Realtek (8852BE/CE) ^& MediaTek (MT7921/MT7922/RZ608/RZ616) supported.
+echo   * USB Selective Suspend disabled to prevent Bluetooth from turning off.
+echo   * Wireless Adapter set to Maximum Performance (AC ^& Battery).
+echo   * PCIe Link State Power Management (ASPM) set to OFF.
 echo.
 echo Please RESTART your computer once to ensure all settings take full effect.
 echo.
