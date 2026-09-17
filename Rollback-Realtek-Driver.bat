@@ -10,11 +10,12 @@ color 0B
 :: Self-elevation to Administrator
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo.
     echo Requesting Administrator permissions...
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
     exit /b
 )
+
+cd /d "%~dp0"
 
 echo.
 echo ============================================================================
@@ -22,7 +23,7 @@ echo         Realtek Wi-Fi Driver Rollback ^& Repair Utility
 echo ============================================================================
 echo.
 echo [1/3] Deleting buggy driver version 6001.15.163.101 (oem2.inf)...
-powershell -Command "pnputil /delete-driver oem2.inf /uninstall /force" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "pnputil /delete-driver oem2.inf /uninstall /force" >nul 2>&1
 
 echo [2/3] Installing stable driver version 6001.15.161.0...
 pnputil /add-driver "C:\Windows\System32\DriverStore\FileRepository\netrtwlane601.inf_amd64_47706e5e6ccfb9b9\netrtwlane601.inf" /install >nul 2>&1
@@ -36,7 +37,7 @@ echo                     DRIVER ROLLBACK COMPLETED!
 echo ============================================================================
 echo.
 echo Current Active Driver:
-powershell -Command "Get-CimInstance -ClassName Win32_PnPSignedDriver | Where-Object { $_.DeviceName -like '*8852BE*' } | Select-Object DeviceName, DriverVersion, DriverDate"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance -ClassName Win32_PnPSignedDriver | Where-Object { $_.DeviceName -like '*8852BE*' } | Select-Object DeviceName, DriverVersion, DriverDate"
 
 echo.
 echo CRITICAL HARDWARE STEP FOR ASUS ROG/TUF LAPTOPS (EC RESET):

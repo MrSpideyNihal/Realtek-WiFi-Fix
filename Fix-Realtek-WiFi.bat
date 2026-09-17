@@ -8,14 +8,15 @@
 title Universal Realtek & MediaTek Wi-Fi / Bluetooth Fix Utility
 color 0A
 
-:: Self-elevation to Administrator
+:: Self-elevation to Administrator with ExecutionPolicy Bypass
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo.
     echo Requesting Administrator permissions...
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
     exit /b
 )
+
+cd /d "%~dp0"
 
 echo.
 echo ============================================================================
@@ -35,7 +36,7 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /v "Hiberb
 
 :: 3. Disable Driver Level Power Saving ^& Roaming Aggressiveness (Realtek ^& MediaTek)
 echo [3/7] Disabling Driver Power Saving, Roaming Drops ^& Bluetooth Sleep...
-powershell -Command "
+powershell -NoProfile -ExecutionPolicy Bypass -Command "
 Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\*' | Where-Object { $_.DriverDesc -like '*Realtek*' -or $_.DriverDesc -like '*MediaTek*' -or $_.DriverDesc -like '*MT79*' -or $_.DriverDesc -like '*RZ6*' } | ForEach-Object {
     Set-ItemProperty -Path $_.PSPath -Name 'RegRoamLevel' -Value '1' -ErrorAction SilentlyContinue
     Set-ItemProperty -Path $_.PSPath -Name 'Dot11dEnable' -Value '0' -ErrorAction SilentlyContinue
@@ -49,10 +50,9 @@ Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e
 
 :: 4. Disable USB Selective Suspend (Prevents Bluetooth portion of combo card from sleeping)
 echo [4/7] Disabling USB Selective Suspend (keeps Bluetooth active)...
-powershell -Command "
+powershell -NoProfile -ExecutionPolicy Bypass -Command "
 $schemes = powercfg /list | Select-String -Pattern '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})' | ForEach-Object { $_.Matches.Value }
 foreach ($s in $schemes) {
-    # USB Selective Suspend -> Disabled (0)
     powercfg /setacvalueindex $s 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
     powercfg /setdcvalueindex $s 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
 }
@@ -60,7 +60,7 @@ foreach ($s in $schemes) {
 
 :: 5. Apply Power Scheme Settings across ALL power plans (Balanced, Performance, Silent, Turbo)
 echo [5/7] Locking Wireless Adapter to Max Performance ^& PCIe Link State to OFF...
-powershell -Command "
+powershell -NoProfile -ExecutionPolicy Bypass -Command "
 $schemes = powercfg /list | Select-String -Pattern '([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})' | ForEach-Object { $_.Matches.Value }
 foreach ($s in $schemes) {
     powercfg /setacvalueindex $s 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 0
@@ -79,18 +79,12 @@ ipconfig /flushdns >nul 2>&1
 
 :: 7. Refresh Network ^& Bluetooth Adapters
 echo [7/7] Restarting Wi-Fi ^& Bluetooth Adapters...
-powershell -Command "Restart-NetAdapter -Name 'Wi-Fi' -ErrorAction SilentlyContinue" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Restart-NetAdapter -Name 'Wi-Fi' -ErrorAction SilentlyContinue" >nul 2>&1
 
 echo.
 echo ============================================================================
 echo                      SUCCESS! ALL FIXES APPLIED.
 echo ============================================================================
-echo.
-echo What was fixed:
-echo   * Realtek (8852BE/CE) ^& MediaTek (MT7921/MT7922/RZ608/RZ616) supported.
-echo   * USB Selective Suspend disabled to prevent Bluetooth from turning off.
-echo   * Wireless Adapter set to Maximum Performance (AC ^& Battery).
-echo   * PCIe Link State Power Management (ASPM) set to OFF.
 echo.
 echo Please RESTART your computer once to ensure all settings take full effect.
 echo.
