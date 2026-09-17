@@ -1,48 +1,46 @@
-# Realtek Wi-Fi Disconnection and Power Drop Fix
+# Realtek Wi-Fi Disconnection, Driver Crash, and Power Drop Fix
 
-Automated 1-click script to resolve recurring Wi-Fi disconnections, Code 10/43 errors, adapter disappearances, and Kernel-PnP Event 420 ("Device deleted") issues on Realtek Wireless LAN PCI-E NICs (such as Realtek 8852BE, 8852CE, 8822CE).
+Automated scripts to resolve recurring Wi-Fi disconnections, Code 10/43 errors, adapter disappearances, NDIS 10317 miniport crashes, and Kernel-PnP Event 420 ("Device deleted") issues on Realtek Wireless LAN PCI-E NICs (such as Realtek 8852BE, 8852CE, 8822CE).
 
 ## Problem Overview
 
-On many gaming laptops (such as ASUS ROG, ASUS TUF, and Lenovo Legion), Windows aggressive power management and PCIe Link State Power Management (ASPM) attempt to power down the Wi-Fi card when idle or in low power modes (e.g. Silent Mode).
+On gaming laptops (such as ASUS ROG, ASUS TUF, and Lenovo Legion), two separate issues cause Realtek Wi-Fi disconnections:
 
-When voltage drops, the Realtek hardware fails to maintain the PCIe link, causing:
-* Kernel-PnP Event 420: `Device PCI\... was deleted`
-* Device Manager Code 10 or Code 43 errors
-* Wi-Fi card completely disappearing from Windows until a full cold reboot
+1. **Driver Miniport Fatal Crashes (Event 5002 rtwlane601 / NDIS 10317)**:
+   The May 2026 ASUS Realtek driver update (`6001.15.163.101`) contains a known memory deadlock bug that repeatedly crashes the NDIS miniport driver during operation.
+2. **PCIe Power Link Dropouts (Kernel-PnP Event 420)**:
+   Aggressive PCIe Link State Power Management (ASPM) cuts power to the Wi-Fi card when idle, causing Windows to report `Device deleted`.
 
-## Fix Summary
+## Tools Provided
 
-This utility applies the following system and power configuration overrides:
-1. Locks Wireless Adapter Power Saving to Maximum Performance across all power plans (AC & Battery).
-2. Disables PCIe Link State Power Management (ASPM) across all power schemes.
-3. Overrides driver-level Leisure Power Save (LPS) and PnPCapabilities registry settings.
-4. Disables Windows Fast Startup to prevent corrupted low-power state caching across reboots.
+* `Fix-Realtek-WiFi.bat`: Configures Windows power management, locks Wi-Fi power to Maximum Performance, turns off PCIe ASPM, and disables driver Leisure Power Save.
+* `Rollback-Realtek-Driver.bat`: Force-deletes the buggy `6001.15.163.101` driver and restores the stable `6001.15.161.0` driver package.
 
 ## Quick Start Guide
 
-### Method 1: Using the Batch Script (Recommended)
+### Step 1: Rollback Buggy Driver Version
 
 1. Download or clone this repository.
-2. Right-click on `Fix-Realtek-WiFi.bat` and select **Run as Administrator**.
-3. Follow the on-screen prompts and restart your computer when complete.
+2. Right-click on `Rollback-Realtek-Driver.bat` and select **Run as Administrator**.
+3. The script will remove driver `6001.15.163.101` and activate stable driver `6001.15.161.0`.
 
-### Method 2: Using PowerShell
+### Step 2: Apply Power Management Fixes
 
-1. Open PowerShell as Administrator.
-2. Run the following command:
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force
-.\Fix-Realtek-WiFi.ps1
-```
-3. Restart your computer when completed.
+1. Right-click on `Fix-Realtek-WiFi.bat` and select **Run as Administrator**.
+2. Wait for the confirmation message.
+
+### Step 3: Hardware EC Reset (Crucial for ASUS ROG/TUF Laptops)
+
+1. Shut down your laptop completely.
+2. Unplug the charging cable.
+3. Press and HOLD the POWER BUTTON for 40 SECONDS continuously.
+4. Plug the charger back in and turn on the laptop.
 
 ## Verification
 
-After applying the script and restarting:
-1. Open **Control Panel** -> **Power Options** -> **Change plan settings** -> **Change advanced power settings**.
-2. Verify that **Wireless Adapter Settings** -> **Power Saving Mode** is set to **Maximum Performance**.
-3. Verify that **PCI Express** -> **Link State Power Management** is set to **Off**.
+After completing the steps above:
+1. Open Device Manager -> **Network adapters** -> **Realtek 8852BE Wireless LAN WiFi 6 PCI-E NIC** -> Properties -> Driver tab.
+2. Confirm Driver Version reads `6001.15.161.0`.
 
 ## License
 
